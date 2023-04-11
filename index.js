@@ -4,6 +4,7 @@ const bcrypt = require('bcrypt')
 const app = express()
 require('dotenv').config()
 const port = process.env.PORT || 3000
+const {v4: uuidv4} = require('uuid');
 
 // Add Swagger UI
 const swaggerUi = require('swagger-ui-express');
@@ -15,9 +16,44 @@ app.use(express.static('public'))
 app.use(express.json())
 
 const users = [
-    {id: 1, email: 'admin', password: 'admin'}
+    {id: 1, email: 'admin', password: '#MinuParoolOnSeeKuiSuurKala#'} // KollneKollne
 ]
 
+const appointments = [
+    {
+        id: 1,
+        title: 'Appointment 1',
+        content: 'This is the content of appointment 1',
+        userId: 1
+    },
+    {
+        id: 2,
+        title: 'Appointment 2',
+        content: 'This is the content of appointment 2',
+        userId: 2
+    },
+    {
+        id: 3,
+        title: 'Appointment 3',
+        content: 'This is the content of appointment 3',
+        userId: 1
+    }
+    ]
+
+let sessions = [
+        {id: '123', userId: 1}
+    ]
+
+function tryToParseJson(jsonString) {
+    try {
+        var o = JSON.parse(jsonString);
+        if (o && typeof o === "object") {
+            return o;
+        }
+    } catch (e) {
+    }
+    return false;
+}
 app.post('/users', async (req, res) => {
 
     // Validate email and password
@@ -28,6 +64,10 @@ app.post('/users', async (req, res) => {
     // Check if email already exists
     if (users.find(user => user.email === req.body.email)) return res.status(409).send('Email already exists')
 
+    // Find user in database
+    //const user = users.find(user => user.email === req.body.email)
+    //if (!user) return res.status(404).send('User not found')
+
     // Try to contact the mail server and send a test email without actually sending it
     try {
         const result = await verifyEmail(req.body.email);
@@ -36,7 +76,11 @@ app.post('/users', async (req, res) => {
         }
         console.log('Email verified')
     } catch (error) {
-        return res.status(400).send('Invalid email: ' + error.code)
+        const errorObject = tryToParseJson(error)
+        if (errorObject && errorObject.info) {
+            return res.status(400).send('Invalid email: ' + errorObject.info)
+        }
+        return res.status(400).send('Invalid email: ' + error)
     }
 
     // Hash password
@@ -53,7 +97,101 @@ app.post('/users', async (req, res) => {
     // Save user to database
     users.push({id: maxId + 1, email: req.body.email, password: hashedPassword})
 
-    res.status(200).end()
+    res.status(201).end()
+})
+
+// POST /sessions
+app.post('/sessions', async (req, res) => {
+    // Validate email and password
+    if (!req.body.email || !req.body.password) return res.status(400).send('Email and password are required')
+
+    // Find user in database
+    const user = users.find(user => user.email === req.body.email)
+    if (!user) return res.status(404).send('User not found')
+
+    // Compare passwords
+    try {
+        if (await bcrypt.compare(req.body.password, user.password)) {
+            // Passwords matchs
+            // Create session
+            const session = {id: uuidv4(), userId: user.id}
+
+            //Add session to sessions array
+            sessions.push(session)
+
+            // Send session to client
+            res.status(201).send(session)
+        } else {
+            // Passwords don't match
+            res.status(401).send('Invalid password')
+        }
+    } catch (error) {
+        console.error(error);
+        res.status(500).send('Internal server error')
+    }
+})
+
+function authorizeRequest(req, res, next) {
+    // Check that there is an authorization header
+    if (!req.headers.authorization) return res.status(401).send('Missing authorization header')
+
+    // Check that the authorization header is in the correct format
+    const authorizationHeader = req.headers.authorization.split(' ')
+    if (authorizationHeader.length !== 2 || authorizationHeader[0] !== 'Bearer') return res.status(400).send('Invalid authorization header')
+
+    // Get sessionId from authorization header
+    const sessionId = authorizationHeader[1]
+
+    // Find session in sessions array
+    const session = sessions.find(session => session.id === sessionId)
+    if (!session) return res.status(401).send('Invalid session')
+
+    // Check that the user exists
+    const user = users.find(user => user.id === session.userId)
+    if (!user) return res.status(401).send('Invalid session')
+
+    // Add user to request object
+    req.user = user
+
+    // Add session to request object
+    req.session = session
+
+    // Call next middleware
+    next()
+
+}
+
+app.get('/appointments', authorizeRequest, (req, res) => {
+
+    // Get notes for user
+    const appointmentsForUser = appointments.filter(appointment => appointment.userId === req.user.id)
+
+    // Send notes to client
+    res.send(appointmentsForUser)
+})
+
+app.delete('/sessions', authorizeRequest, (req, res) => {
+
+    // Remove session from sessions array
+    sessions = sessions.filter(session => session.id !== req.session.id)
+
+    res.status(204).end()
+
+})
+
+app.post('/appointments', authorizeRequest, (req, res) => {
+
+    // Validate title and content
+    if (!req.body.title || !req.body.content) return res.status(400).send('Title and content are required')
+
+    // Find max id
+    const maxId = appointments.reduce((max, appointment) => appointment.id > max ? appointment.id : max, appointments[0].id)
+
+    // Save note to database
+    appointments.push({id: maxId + 1, title: req.body.title, content: req.body.content, userId: req.user.id})
+
+    // Send note to client
+    res.status(201).send(appointments[appointments.length - 1])
 
 })
 
@@ -66,7 +204,7 @@ function verifyEmail(email) {
         verifier.verify(email, (err, info) => {
             console.log(err, info);
             if (err) {
-                reject(JSON.stringify(err));
+                reject(JSON.stringify(info));
             } else {
                 resolve(info);
             }
