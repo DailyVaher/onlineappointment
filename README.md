@@ -1,6 +1,10 @@
 # onlineappointment
 
-This is a simple onlineappointment app built with Vue.js and Express.js. It uses plain json array to tore notes.
+This is a simple onlineappointment app built with Vue.js and Express.js. 
+
+## Project management
+
+https://www.pivotaltracker.com/n/projects/2633751
 
 ## Project setup
 
