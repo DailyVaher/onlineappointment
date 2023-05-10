@@ -204,7 +204,7 @@ app.delete('/appointments/:id', authorizeRequest, (req, res) => {
     if (appointment.userId !== req.user.id) return res.status(401).send('Unauthorized')
 
     // Remove appointment from active database
-    appointment.splice(appointment.indexOf(book), 1)
+    appointment.splice(appointment.indexOf(appointment), 1)
     expressWs.getWss().clients.forEach(client => client.send(appointment.id));
     res.status(204).end()
 })
