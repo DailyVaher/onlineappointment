@@ -4,6 +4,7 @@ const bcrypt = require('bcrypt')
 const app = express()
 require('dotenv').config()
 const port = process.env.PORT || 3000
+let expressWs = require('express-ws')(app);
 const {v4: uuidv4} = require('uuid');
 
 // Add Swagger UI
@@ -14,6 +15,12 @@ app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
 app.use(express.static('public'))
 app.use(express.json())
+app.ws('/', function (ws, req) {
+    ws.on('message', function (msg) {
+        expressWs.getWss().clients.forEach(client => client.send(msg));
+    });
+    console.log('socket', req.testing);
+});
 
 const users = [
     {id: 1, email: 'admin', password: '#MinuParoolOnSeeKuiSuurKala#'} // KollneKollne
@@ -46,7 +53,7 @@ let sessions = [
 
 function tryToParseJson(jsonString) {
     try {
-        var o = JSON.parse(jsonString);
+        let o = JSON.parse(jsonString);
         if (o && typeof o === "object") {
             return o;
         }
@@ -54,6 +61,8 @@ function tryToParseJson(jsonString) {
     }
     return false;
 }
+
+const delay = (ms) => new Promise(res => setTimeout(res, ms));
 app.post('/users', async (req, res) => {
 
     // Validate email and password
@@ -112,7 +121,7 @@ app.post('/sessions', async (req, res) => {
     // Compare passwords
     try {
         if (await bcrypt.compare(req.body.password, user.password)) {
-            // Passwords matchs
+            // Passwords match
             // Create session
             const session = {id: uuidv4(), userId: user.id}
 
@@ -161,22 +170,13 @@ function authorizeRequest(req, res, next) {
 
 }
 
-app.get('/appointments', authorizeRequest, (req, res) => {
-
-    // Get notes for user
+app.get('/appointments', authorizeRequest, async (req, res) => {
+    await delay(1000)
+    // Get appointments for user
     const appointmentsForUser = appointments.filter(appointment => appointment.userId === req.user.id)
 
-    // Send notes to client
+    // Send appointments to client
     res.send(appointmentsForUser)
-})
-
-app.delete('/sessions', authorizeRequest, (req, res) => {
-
-    // Remove session from sessions array
-    sessions = sessions.filter(session => session.id !== req.session.id)
-
-    res.status(204).end()
-
 })
 
 app.post('/appointments', authorizeRequest, (req, res) => {
@@ -194,7 +194,48 @@ app.post('/appointments', authorizeRequest, (req, res) => {
     res.status(201).send(appointments[appointments.length - 1])
 
 })
+app.delete('/appointments/:id', authorizeRequest, (req, res) => {
 
+    // Find appointment in database
+    const appointment = appointments.find(appointment => appointment.id === parseInt(req.params.id))
+    if (!appointment) return res.status(404).send('Appointment not found')
+
+    // Check that the appointment belongs to the user
+    if (appointment.userId !== req.user.id) return res.status(401).send('Unauthorized')
+
+    // Remove appointment from active database
+    appointment.splice(appointment.indexOf(book), 1)
+    expressWs.getWss().clients.forEach(client => client.send(appointment.id));
+    res.status(204).end()
+})
+
+app.put('/appointments/:id', authorizeRequest, (req, res) => {
+
+        // Find appointment in database
+        const appointment = appointments.find(appointment => appointment.id === parseInt(req.params.id))
+        if (!appointment) return res.status(404).send('Appointment not found')
+
+        // Check that the appointment belongs to the user
+        if (appointment.userId !== req.user.id) return res.status(401).send('Unauthorized')
+
+        // Validate title and content
+        if (!req.body.title || !req.body.content) return res.status(400).send('Title and content are required')
+
+        // Update appointment
+        appointment.title = req.body.title
+        appointment.content = req.body.content
+        expressWs.getWss().clients.forEach(client => client.send(appointment.id));
+
+        // Send appointment to client
+        res.send(appointment)
+})
+
+app.delete('/sessions', authorizeRequest, (req, res) => {
+    // Remove session from sessions array
+    sessions = sessions.filter(session => session.id !== req.session.id)
+
+    res.status(204).end()
+})
 app.listen(port, () => {
     console.log(`Example app listening on port ${port}`)
 })
