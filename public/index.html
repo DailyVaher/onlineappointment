@@ -237,29 +237,21 @@
 
             // If the user is logged in, get the appointments
             if (this.sessionId) {
-                this.getAppointments()
+                this.getAppointmentsFromLocalStorage()
+
+                this.getAndCacheAppointments()
             }
         },
         methods: {
             async getAppointmentsFromLocalStorage() {
                 this.appointments = JSON.parse(localStorage.getItem('appointments'))
-                console.table(this.appointments);
-                let response;
-                try {
-                    response = await this.send('GET', 'http://localhost:4000/appointments');
-                } catch (e) {
-                    alert('Network error')
-                }
-
-                localStorage.setItem('appointments', JSON.stringify(response.body));
-                this.appointments = response.body;
-                this.sessionId = localStorage.getItem('sessionId');
-            },
-
-            getAppointments() {
+                },
+            getAndCacheAppointments() {
                 this.send('GET', '/appointments').then(response => {
                     if (response.ok) {
                         this.appointments = response.body
+                        localStorage.setItem('appointments', JSON.stringify(response.body))
+
                     }
                 })
             },

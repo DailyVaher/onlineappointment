@@ -23,7 +23,7 @@ app.ws('/', function (ws, req) {
 });
 
 const users = [
-    {id: 1, email: 'admin', password: '#MinuParoolOnSeeKuiSuurKala#'} // KollneKollne
+    {id: 1, email: 'admin', password: '$2b$10$0EfA6fMFRDVQWzU0WR1dmelPA7.qSp7ZYJAgneGsy2ikQltX2Duey'} // KollneKollne
 ]
 
 const appointments = [
@@ -95,7 +95,7 @@ app.post('/users', async (req, res) => {
     // Hash password
     let hashedPassword
     try {
-        hashedPassword = await bcrypt.hash(req.body.password, 10);
+        hashedPassword = await bcrypt.hash(req.body.password,10);
     } catch (error) {
         console.error(error);
     }

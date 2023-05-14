@@ -22,5 +22,9 @@ npm start
 [MIT](https://choosealicense.com/licenses/mit/)
 
 ## Acknowledgements
-- [Vue.js](https://vuejs.org/)
-- [Express.js](https://expressjs.com/)
+[Vue.js] (https://vuejs.org/)
+[Express] (https://expressjs.com/)
+[bcrypt] (https://www.npmjs.com/package/bcrypt)
+[dotenv] (https://www.npmjs.com/package/dotenv)
+[yamlJS] (https://www.npmjs.com/package/yamljs)
+[swagger-ui-express] (https://www.npmjs.com/package/swagger-ui-express)
